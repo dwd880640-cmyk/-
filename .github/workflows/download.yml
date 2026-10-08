@@ -1,0 +1,54 @@
+name: download
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        required: true
+      upload_url:
+        required: true
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install -U "yt-dlp[default]" requests
+      - name: Download and upload
+        env:
+          VIDEO_ID: ${{ inputs.video_id }}
+          UPLOAD_URL: ${{ inputs.upload_url }}
+        run: |
+          echo "::add-mask::$UPLOAD_URL"
+          yt-dlp --no-playlist --retries 10 --js-runtimes node \
+            -f "bv*[height<=720]+ba/b[height<=720]/b" \
+            --merge-output-format mp4 -o video.mp4 \
+            "https://www.youtube.com/watch?v=$VIDEO_ID"
+          python - <<'EOF'
+          import os, sys, time, requests
+          url = os.environ["UPLOAD_URL"]
+          size = os.path.getsize("video.mp4")
+          CHUNK = 64 * 1024 * 1024
+          with open("video.mp4", "rb") as f:
+              start = 0
+              while start < size:
+                  data = f.read(CHUNK)
+                  end = start + len(data) - 1
+                  h = {"Content-Length": str(len(data)),
+                       "Content-Range": f"bytes {start}-{end}/{size}"}
+                  for a in range(5):
+                      r = requests.put(url, data=data, headers=h)
+                      if r.status_code in (200, 201, 308):
+                          break
+                      time.sleep(2 ** a)
+                  else:
+                      sys.exit(f"upload failed: {r.status_code} {r.text}")
+                  start = end + 1
+          EOF
