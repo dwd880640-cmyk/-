@@ -25,12 +25,15 @@ jobs:
         env:
           VIDEO_ID: ${{ inputs.video_id }}
           UPLOAD_URL: ${{ inputs.upload_url }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           echo "::add-mask::$UPLOAD_URL"
-          yt-dlp --no-playlist --retries 10 --js-runtimes node \
+          printf '%s' "$YT_COOKIES" > cookies.txt
+          yt-dlp --cookies cookies.txt --no-playlist --retries 10 --js-runtimes node \
             -f "bv*[height<=720]+ba/b[height<=720]/b" \
             --merge-output-format mp4 -o video.mp4 \
             "https://www.youtube.com/watch?v=$VIDEO_ID"
+          rm -f cookies.txt
           python - <<'EOF'
           import os, sys, time, requests
           url = os.environ["UPLOAD_URL"]
