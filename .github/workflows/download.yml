@@ -6,6 +6,10 @@ on:
         required: true
       upload_url:
         required: true
+      audio:
+        description: 'audio only (true = mp3)'
+        required: false
+        default: ''
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -25,23 +29,35 @@ jobs:
         env:
           VIDEO_ID: ${{ inputs.video_id }}
           UPLOAD_URL: ${{ inputs.upload_url }}
+          AUDIO: ${{ inputs.audio }}
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           echo "::add-mask::$UPLOAD_URL"
           printf '%s' "$YT_COOKIES" > cookies.txt
           deno --version
-          yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
-            --js-runtimes deno --remote-components ejs:github \
-            -f "bv*[height<=720]+ba/b[height<=720]/b" \
-            --merge-output-format mp4 -o video.mp4 \
-            "https://www.youtube.com/watch?v=$VIDEO_ID"
+          if [ "$AUDIO" = "true" ]; then
+            export FILE=audio.mp3
+            yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
+              --js-runtimes deno --remote-components ejs:github \
+              -f "ba/b" -x --audio-format mp3 --audio-quality 0 \
+              -o "audio.%(ext)s" \
+              "https://www.youtube.com/watch?v=$VIDEO_ID"
+          else
+            export FILE=video.mp4
+            yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
+              --js-runtimes deno --remote-components ejs:github \
+              -f "bv*[height<=720]+ba/b[height<=720]/b" \
+              --merge-output-format mp4 -o video.mp4 \
+              "https://www.youtube.com/watch?v=$VIDEO_ID"
+          fi
           rm -f cookies.txt
           python - <<'EOF'
           import os, sys, time, requests
           url = os.environ["UPLOAD_URL"]
-          size = os.path.getsize("video.mp4")
+          path = os.environ["FILE"]
+          size = os.path.getsize(path)
           CHUNK = 64 * 1024 * 1024
-          with open("video.mp4", "rb") as f:
+          with open(path, "rb") as f:
               start = 0
               while start < size:
                   data = f.read(CHUNK)
