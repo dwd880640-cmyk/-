@@ -24,7 +24,7 @@ jobs:
       - name: Install
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          pip install -U "yt-dlp[default]" yt-dlp-ejs requests
+          pip install -U --pre "yt-dlp[default]" yt-dlp-ejs requests
       - name: Download and upload
         env:
           VIDEO_ID: ${{ inputs.video_id }}
@@ -33,11 +33,17 @@ jobs:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           echo "::add-mask::$UPLOAD_URL"
-          printf '%s' "$YT_COOKIES" > cookies.txt
+          printf '%s\n' "$YT_COOKIES" > cookies.txt
+          if [ ! -s cookies.txt ] || [ "$(wc -l < cookies.txt)" -lt 3 ]; then
+            echo "ERROR: cookies.txt is empty - check the YT_COOKIES secret"
+            exit 1
+          fi
+          yt-dlp --version
           deno --version
           if [ "$AUDIO" = "true" ]; then
             export FILE=audio.mp3
             yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
+              --abort-on-unavailable-fragments \
               --js-runtimes deno --remote-components ejs:github \
               -f "ba/b" -x --audio-format mp3 --audio-quality 0 \
               -o "audio.%(ext)s" \
@@ -45,6 +51,7 @@ jobs:
           else
             export FILE=video.mp4
             yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
+              --abort-on-unavailable-fragments \
               --js-runtimes deno --remote-components ejs:github \
               -f "bv*[height<=720]+ba/b[height<=720]/b" \
               --merge-output-format mp4 -o video.mp4 \
