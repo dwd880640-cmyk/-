@@ -40,9 +40,10 @@ jobs:
           fi
           yt-dlp --version
           deno --version
+          retry() { for i in 1 2 3; do "$@" && return 0; echo "attempt $i failed"; sleep $((i*20)); done; return 1; }
           if [ "$AUDIO" = "true" ]; then
             export FILE=audio.mp3
-            yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
+            retry yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
               --abort-on-unavailable-fragments \
               --js-runtimes deno --remote-components ejs:github \
               -f "ba/b" -x --audio-format mp3 --audio-quality 0 \
@@ -50,7 +51,7 @@ jobs:
               "https://www.youtube.com/watch?v=$VIDEO_ID"
           else
             export FILE=video.mp4
-            yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
+            retry yt-dlp --cookies cookies.txt --no-playlist --retries 10 \
               --abort-on-unavailable-fragments \
               --js-runtimes deno --remote-components ejs:github \
               -f "bv*[height<=720]+ba/b[height<=720]/b" \
