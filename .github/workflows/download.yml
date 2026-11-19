@@ -23,7 +23,14 @@ jobs:
           deno-version: v2.x
       - name: Install
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-retries
+            for i in 1 2 3; do
+              sudo apt-get update && sudo apt-get install -y --no-install-recommends --fix-missing ffmpeg && break
+              echo "apt attempt $i failed"; sleep $((i*15))
+            done
+          fi
+          ffmpeg -version | head -1
           pip install -U --pre "yt-dlp[default]" yt-dlp-ejs requests
       - name: Download and upload
         env:
