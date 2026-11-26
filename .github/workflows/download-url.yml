@@ -1,0 +1,31 @@
+name: download-url
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        required: true
+      upload_url:
+        required: true
+jobs:
+  dl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -U yt-dlp
+      - name: Download
+        env:
+          URL: ${{ inputs.url }}
+        run: |
+          yt-dlp --no-playlist --max-filesize 1G \
+            -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b" \
+            --merge-output-format mp4 -o "out.%(ext)s" "$URL"
+      - name: Upload to Drive
+        env:
+          UPLOAD_URL: ${{ inputs.upload_url }}
+        run: |
+          f=$(ls out.* | head -1)
+          curl -fsS -X PUT -H "Content-Type: video/mp4" --data-binary @"$f" "$UPLOAD_URL"
