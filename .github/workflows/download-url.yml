@@ -1,10 +1,13 @@
 name: download-url
+run-name: ${{ inputs.job_id }}
 on:
   workflow_dispatch:
     inputs:
       url:
         required: true
       upload_url:
+        required: true
+      job_id:
         required: true
 jobs:
   dl:
@@ -22,20 +25,14 @@ jobs:
         env:
           URL: ${{ inputs.url }}
         run: |
-          yt-dlp --no-playlist --max-filesize 1G \
-            -f "bv*+ba/b" \
-            -o "raw.%(ext)s" "$URL"
-          ls -la raw.*
-      - name: Convert to H.264 mp4
+          yt-dlp --no-playlist --max-filesize 1G -f "bv*+ba/b" -o "raw.%(ext)s" "$URL"
+      - name: Convert
         run: |
           f=$(ls raw.* | head -1)
-          ffmpeg -y -i "$f" \
-            -map 0:v:0 -map 0:a:0? \
+          ffmpeg -y -i "$f" -map 0:v:0 -map 0:a:0? \
             -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p \
-            -c:a aac -b:a 128k \
-            -movflags +faststart out.mp4
-          ls -la out.mp4
-      - name: Upload to Drive
+            -c:a aac -b:a 128k -movflags +faststart out.mp4
+      - name: Upload
         env:
           UPLOAD_URL: ${{ inputs.upload_url }}
         run: |
