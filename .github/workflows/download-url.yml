@@ -15,17 +15,28 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install
-        run: pip install -U yt-dlp
+        run: |
+          pip install -U yt-dlp
+          sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Download
         env:
           URL: ${{ inputs.url }}
         run: |
           yt-dlp --no-playlist --max-filesize 1G \
-            -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b" \
-            --merge-output-format mp4 -o "out.%(ext)s" "$URL"
+            -f "bv*+ba/b" \
+            -o "raw.%(ext)s" "$URL"
+          ls -la raw.*
+      - name: Convert to H.264 mp4
+        run: |
+          f=$(ls raw.* | head -1)
+          ffmpeg -y -i "$f" \
+            -map 0:v:0 -map 0:a:0? \
+            -c:v libx264 -preset veryfast -crf 26 -pix_fmt yuv420p \
+            -c:a aac -b:a 128k \
+            -movflags +faststart out.mp4
+          ls -la out.mp4
       - name: Upload to Drive
         env:
           UPLOAD_URL: ${{ inputs.upload_url }}
         run: |
-          f=$(ls out.* | head -1)
-          curl -fsS -X PUT -H "Content-Type: video/mp4" --data-binary @"$f" "$UPLOAD_URL"
+          curl -fsS -X PUT -H "Content-Type: video/mp4" --data-binary @out.mp4 "$UPLOAD_URL"
